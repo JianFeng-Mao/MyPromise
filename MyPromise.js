@@ -176,6 +176,148 @@ class MyPromise {
     })
     return promise2;
   }
+
+  catch(onRejected) {
+    this.then(undefined, onRejected);
+  }
+
+  finally(callback) {
+    this.then(callback, callback);
+  }
+
+  static resolve(value) {
+    if(value instanceof MyPromise) {
+      // 如果value是Promise，则直接返回该Promise
+      return value;
+    } else if(typeof value === 'object' && 'then' in value) {
+      // 如果value是thenable，即带有‘then’方法，返回的promise会“跟随”这个thenable的对象，并采用它的最终状态
+      return new MyPromise((resolve, reject) => {
+        value.then(resolve, reject);
+      })
+    } else {
+      // 否则返回的promise以此值完成，即以此值执行resolve方法，状态为fulfilled
+      return new MyPromise((resolve, reject) => {
+        resolve(value);
+      })
+    }
+  }
+
+  // 返回一个带有拒绝原因的promise
+  static reject(reason) {
+    return new MyPromise((resolve, reject) => {
+      reject(reason);
+    })
+  }
+
+  /**
+   * 等待所有promise都完成（或者第一个失败）
+   *  如果传入的参数是一个空的可迭代对象，则返回一个已完成状态的Promise
+   *  如果参数中包含非promise值，这些值将被忽略，但仍然会被放在返回数组中，如果promise完成的话，也就是如果参数里的某值不是Promise，则需要原样返回在数组里
+   *  在任何情况下，Promise.all返回的promise的完成状态的结果都是一个数组，它包含所有传入迭代参数对象的数组
+   *  如果传入的promise中有一个失败，则异步将失败的那个结果给失败状态的回调函数，忽略其它参数的状态
+   * @param {*} proms 
+   * @returns 
+   */
+  static all(proms) {
+    return new MyPromise((resolve, reject) => {
+      try {
+        let results = [];
+        if(Array.isArray(proms)) {
+          let conut = 0;
+          if(proms.length === 0) {
+            resolve(proms);
+          } else {
+            proms.forEach((p, i) => {
+              MyPromise.resolve(p).then(
+                res => {
+                  results[i] = res;
+                  count ++;
+                  if(count === proms.length) {
+                    resolve(results);
+                  }
+                },
+                reject
+              )
+            })
+          }
+        } else {
+          resolve(results);
+        }
+      } catch (e) {
+        reject(e);
+      }
+    })
+  }
+
+  static any(proms) {
+    return new MyPromise((resolve, reject) => {
+      if(Array.isArray(proms)) {
+        let results = [];
+        let count = 0;
+        if(proms.length === 0) {
+          reject(new AggregateError('All promises were rejected'));
+        } else {
+          proms.forEach((p, i) => {
+            MyPromise.resolve(p).then(
+              resolve,
+              e => {
+                results[i] = e;
+                count ++;
+                if(count === proms.length) {
+                  reject(new AggregateError(results));
+                }
+              }
+            )
+          })
+        }
+      } else {
+        reject(new TypeError('Arguments is not iterable'));
+      }
+    })
+  }
+
+  static allSettled(proms) {
+    return new MyPromise((resolve, reject) => {
+      try {
+        let results = [];
+        if(Array.isArray(proms)) {
+          let count = 0;
+          if(proms.length === 0) {
+            resolve(proms);
+          } else {
+            proms.forEach((p, i) => {
+              MyPromise.resolve(p).then(
+                res => {
+                  results[i] = {
+                    state: 'fulfilled',
+                    value: res
+                  };
+                  count ++;
+                  if(count === proms.length) {
+                    resolve(results);
+                  }
+                },
+                err => {
+                  rresults[i] = {
+                    state: 'rejected',
+                    value: err
+                  };
+                  count ++;
+                  if(count === proms.length) {
+                    resolve(results);
+                  }
+                }
+              )
+            })
+          }
+        } else {
+          resolve(results);
+        }
+      } catch (e) {
+        reject(e);
+      }
+    })
+  }
 }
 
 
